@@ -4,12 +4,10 @@ from datetime import datetime, timedelta
 from typing import Any, Optional, Dict
 
 import pytz
-from Jam_Twitter_API.account_async import TwitterAccountAsync
-from Jam_Twitter_API.errors import TwitterError, TwitterAccountSuspended
 from loguru import logger
 from loader import config
 from models import Account, OperationResult, StatisticData
-from utils import error_handler, url_to_params_dict
+from utils import error_handler
 
 from .api import PipeNetworkAPI
 from database import Accounts
