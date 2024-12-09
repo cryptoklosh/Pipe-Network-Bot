@@ -4,10 +4,12 @@ from datetime import datetime, timedelta
 from typing import Any, Optional, Dict
 
 import pytz
+from Jam_Twitter_API.account_async import TwitterAccountAsync
+from Jam_Twitter_API.errors import TwitterError, TwitterAccountSuspended
 from loguru import logger
 from loader import config
 from models import Account, OperationResult
-from utils import error_handler
+from utils import error_handler, url_to_params_dict
 
 from .api import PipeNetworkAPI
 from database import Accounts
@@ -47,6 +49,92 @@ class Bot(PipeNetworkAPI):
         if config.show_points_stats:
             response = await self.points_in_extension()
             logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
+
+
+    @error_handler(return_operation_result=True)
+    async def process_bind_twitter(self):
+        if not await self._prepare_account():
+            return OperationResult(
+                identifier=self.account_data.email,
+                data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+                status=False
+            )
+
+        logger.info(f"Account: {self.account_data.email} | Binding Twitter...")
+        twitter_bind_params = await self.get_twitter_bind_params()
+
+        if twitter_bind_params.get("status", "") == "User already verified":
+            logger.warning(f"Account: {self.account_data.email} | Twitter account already bound")
+            if await self.process_twitter_status():
+                return OperationResult(
+                    identifier=self.account_data.email,
+                    data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+                    status=True
+                )
+            else:
+                return OperationResult(
+                    identifier=self.account_data.email,
+                    data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+                    status=False
+                )
+
+        elif not twitter_bind_params.get("url"):
+            logger.error(f"Account: {self.account_data.email} | Failed to get twitter bind params: {twitter_bind_params}")
+            return OperationResult(
+                identifier=self.account_data.email,
+                data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+                status=False
+            )
+
+        else:
+            twitter_bind_params = url_to_params_dict(twitter_bind_params["url"])
+            logger.info(f"Account: {self.account_data.email} | Twitter bind params received, binding account...")
+
+
+        try:
+            twitter_account = await TwitterAccountAsync.run(auth_token=self.account_data.twitter_token, proxy=self.account_data.proxy.as_url)
+            approved_code = await twitter_account.bind_account_v2(twitter_bind_params)
+            bound_data = await self.bind_twitter(twitter_bind_params["state"], approved_code)
+
+            if isinstance(bound_data, dict) and bound_data.get("status", "") == "success":
+                logger.success(f"Account: {self.account_data.email} | Twitter account bound")
+                if await self.process_twitter_status():
+                    return OperationResult(
+                        identifier=self.account_data.email,
+                        data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+                        status=True
+                    )
+                else:
+                    return OperationResult(
+                        identifier=self.account_data.email,
+                        data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+                        status=False
+                    )
+
+            logger.error(f"Account: {self.account_data.email} | Failed to bind twitter: {bound_data}")
+
+        except TwitterError as error:
+            logger.error(f"Account: {self.account_data.email} | Failed to bind twitter (APIError): {error}")
+
+        except TwitterAccountSuspended:
+            logger.error(f"Account: {self.account_data.email} | Twitter account is suspended")
+
+        return OperationResult(
+            identifier=self.account_data.email,
+            data=f"{self.account_data.password}:{self.account_data.twitter_token}",
+            status=True
+        )
+
+
+    @error_handler(return_operation_result=False)
+    async def process_twitter_status(self) -> bool:
+        follow_status = await self.twitter_follow_status()
+        if follow_status.get("status") == "User already verified":
+            logger.success(f"Account: {self.account_data.email} | Twitter Username: {follow_status['user']['username']} | Reward: {follow_status['user']['reward']} points")
+            return True
+
+        logger.error(f"Account: {self.account_data.email} | Twitter follow status: {follow_status}")
+        return False
 
     async def _prepare_account(self) -> bool:
         account = await Accounts.get_account(email=self.account_data.email)

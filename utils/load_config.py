@@ -1,7 +1,7 @@
 import os
 from itertools import cycle
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Literal
 
 import yaml
 from loguru import logger
@@ -62,19 +62,29 @@ class ConfigLoader:
         except Exception as e:
             raise ConfigurationError(f"Failed to parse proxies: {e}")
 
-    def _parse_accounts(self, filename: str, proxies: Optional[List[Proxy]] = None) -> List[Account]:
+    def _parse_accounts(self, filename: str, mode: Literal["farm", "register", "bind_twitter"], proxies: Optional[List[Proxy]] = None) -> List[Account]:
         proxy_cycle = cycle(proxies) if proxies else None
         accounts = []
 
         try:
             for line in self._read_file(self.data_path / filename, allow_empty=True):
                 try:
-                    email, password = line.split(':', 1)
-                    accounts.append(Account(
-                        email=email.strip(),
-                        password=password.strip(),
-                        proxy=next(proxy_cycle) if proxy_cycle else None
-                    ))
+                    if mode in ("register", "farm"):
+                        email, password = line.split(':', 1)
+                        accounts.append(Account(
+                            email=email.strip(),
+                            password=password.strip(),
+                            proxy=next(proxy_cycle) if proxy_cycle else None
+                        ))
+
+                    elif mode == "bind_twitter":
+                        email, password, twitter_token = line.split(':', 2)
+                        accounts.append(Account(
+                            email=email.strip(),
+                            password=password.strip(),
+                            twitter_token=twitter_token.strip(),
+                            proxy=next(proxy_cycle) if proxy_cycle else None
+                        ))
                 except ValueError:
                     logger.warning(f"Skipping invalid account format: {line}")
                     continue
@@ -90,16 +100,18 @@ class ConfigLoader:
             params = self._load_yaml()
             proxies = self._parse_proxies()
 
-            reg_accounts = self._parse_accounts("register.txt", proxies)
-            farm_accounts = self._parse_accounts("farm.txt", proxies)
+            reg_accounts = self._parse_accounts("register.txt", "register", proxies)
+            farm_accounts = self._parse_accounts("farm.txt", "farm", proxies)
+            bind_twitter_accounts = self._parse_accounts("bind_twitter.txt", "bind_twitter", proxies)
 
-            if not (reg_accounts or farm_accounts):
+            if not (reg_accounts or farm_accounts or bind_twitter_accounts):
                 raise ConfigurationError("No valid accounts found")
 
             return Config(
                 **params,
                 accounts_to_farm=farm_accounts,
-                accounts_to_register=reg_accounts
+                accounts_to_register=reg_accounts,
+                accounts_to_bind_twitter=bind_twitter_accounts
             )
 
         except Exception as e:

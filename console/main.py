@@ -21,10 +21,12 @@ class Console:
         "Register",
         "Farm",
         "Exit",
+        "Bind Twitter",
     )
     MODULES_DATA = {
         "Register": "register",
         "Farm": "farm",
+        "Bind Twitter": "bind_twitter",
         "Exit": "exit",
     }
 

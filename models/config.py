@@ -12,6 +12,7 @@ class Account(BaseModel):
 
     email: str
     password: str = Field(default_factory=lambda: ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(random.randint(10, 14))))
+    twitter_token: str = ""
     proxy: Proxy
 
 
@@ -24,6 +25,7 @@ class Config(BaseModel):
 
     accounts_to_register: list[Account] = []
     accounts_to_farm: list[Account] = []
+    accounts_to_bind_twitter: list[Account] = []
     referral_codes: list[str] = []
 
     delay_before_start: DelayBeforeStart

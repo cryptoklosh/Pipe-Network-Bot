@@ -14,6 +14,10 @@ class FileOperations:
             "register": {
                 "success": self.base_path / "registration_success.txt",
                 "failed": self.base_path / "registration_failed.txt",
+            },
+            "bind_twitter": {
+                "success": self.base_path / "bind_twitter_success.txt",
+                "failed": self.base_path / "bind_twitter_failed.txt",
             }
         }
 

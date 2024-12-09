@@ -33,6 +33,7 @@ async def run_module_safe(
                 logger.info(f"Account: {account.email} | Sleep for {random_delay} sec")
                 await asyncio.sleep(random_delay)
 
+
         result = await process_func(bot)
         return result
 
@@ -45,6 +46,10 @@ async def process_registration(bot: Bot) -> None:
 async def process_farming(bot: Bot) -> None:
     await bot.process_farming_actions()
 
+
+async def process_bind_twitter(bot: Bot) -> None:
+    operation_result = await bot.process_bind_twitter()
+    await file_operations.export_result(operation_result, "bind_twitter")
 
 
 async def run_module(
@@ -74,6 +79,7 @@ async def run() -> None:
     module_map = {
         "register": (config.accounts_to_register, process_registration),
         "farm": (config.accounts_to_farm, farm_continuously),
+        "bind_twitter": (config.accounts_to_bind_twitter, process_bind_twitter),
     }
 
     while True:

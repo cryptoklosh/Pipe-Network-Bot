@@ -6,6 +6,7 @@ from typing import Literal, Tuple, Any
 from curl_cffi.requests import AsyncSession, Response, RequestsError
 
 from models import Account
+from utils import url_to_params_dict
 from .exceptions.base import APIError, SessionRateLimited, ServerError
 
 
@@ -19,7 +20,7 @@ class PipeNetworkAPI:
         self.session = self.setup_session()
 
     def setup_session(self) -> AsyncSession:
-        session = AsyncSession(impersonate="chrome124", verify=False, timeout=60)
+        session = AsyncSession(impersonate="chrome124", verify=False, timeout=30)
         session.headers = {
             'accept': '*/*',
             'accept-language': 'en-US,en;q=0.9',
@@ -39,7 +40,7 @@ class PipeNetworkAPI:
         return session
 
     async def clear_request(self, url: str, headers: dict = None, cookies: dict = None) -> Response:
-        session = AsyncSession(impersonate="chrome124", verify=False, timeout=5)
+        session = AsyncSession(impersonate="chrome124", verify=False, timeout=15)
         session.proxies = self.session.proxies
 
         response = await session.get(url, headers=headers, cookies=cookies)
@@ -269,6 +270,21 @@ class PipeNetworkAPI:
         return await self.send_request(method="/heartbeat", request_type="POST", api_type="SITE", json_data=json_data, headers=headers)
 
 
+    async def get_twitter_bind_params(self) -> dict[str, str]:
+        return await self.send_request(method="/twitter-login", request_type="GET", api_type="SITE")
+
+    async def twitter_follow_status(self) -> dict[str, Any]:
+        return await self.send_request(method="/follow-status", request_type="GET", api_type="SITE")
+
+
+    async def bind_twitter(self, state: str, approved_code: str):
+        json_data = {
+            'code': approved_code,
+            'state': state,
+        }
+
+        return await self.send_request(method="/twitter/callback", request_type="POST", api_type="EXTENSION", json_data=json_data)
+
     async def test_node_latency(self, ip: str) -> int:
         try:
             start_time = time.time()
@@ -278,7 +294,6 @@ class PipeNetworkAPI:
             latency = -1
 
         return latency
-
 
 
     async def get_geo_location(self) -> dict[str, str]:
