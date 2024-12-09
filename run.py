@@ -47,6 +47,11 @@ async def process_farming(bot: Bot) -> None:
     await bot.process_farming_actions()
 
 
+async def process_export_stats(bot: Bot) -> None:
+    statistics_data = await bot.process_export_stats()
+    await file_operations.export_stats(statistics_data)
+
+
 async def process_bind_twitter(bot: Bot) -> None:
     operation_result = await bot.process_bind_twitter()
     await file_operations.export_result(operation_result, "bind_twitter")
@@ -80,6 +85,7 @@ async def run() -> None:
         "register": (config.accounts_to_register, process_registration),
         "farm": (config.accounts_to_farm, farm_continuously),
         "bind_twitter": (config.accounts_to_bind_twitter, process_bind_twitter),
+        "export_stats": (config.accounts_to_farm, process_export_stats),
     }
 
     while True:
@@ -93,7 +99,8 @@ async def run() -> None:
 
         if not accounts:
             logger.error(f"No accounts for {config.module}")
-            break
+            input("\n\nPress Enter to continue...")
+            continue
 
         if config.module == "farm":
             await process_func(accounts)

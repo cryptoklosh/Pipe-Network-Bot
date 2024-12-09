@@ -24,7 +24,7 @@ def error_handler(*, return_operation_result: bool = False):
                 return await func(*args, **kwargs)
 
             except APIError as error:
-                self = args[0]  # получаем self из args
+                self = args[0]
                 logger.error(f"Account: {self.account_data.email} | {func.__name__} failed (APIError): {error}")
                 if hasattr(self, 'handle_api_error'):
                     await self.handle_api_error(error)

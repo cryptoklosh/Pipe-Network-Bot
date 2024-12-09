@@ -8,7 +8,7 @@ from Jam_Twitter_API.account_async import TwitterAccountAsync
 from Jam_Twitter_API.errors import TwitterError, TwitterAccountSuspended
 from loguru import logger
 from loader import config
-from models import Account, OperationResult
+from models import Account, OperationResult, StatisticData
 from utils import error_handler, url_to_params_dict
 
 from .api import PipeNetworkAPI
@@ -53,7 +53,7 @@ class Bot(PipeNetworkAPI):
 
     @error_handler(return_operation_result=True)
     async def process_bind_twitter(self):
-        if not await self._prepare_account():
+        if not await self._prepare_account(verify_sleep=False):
             return OperationResult(
                 identifier=self.account_data.email,
                 data=f"{self.account_data.password}:{self.account_data.twitter_token}",
@@ -126,6 +126,31 @@ class Bot(PipeNetworkAPI):
         )
 
 
+    @error_handler(return_operation_result=True)
+    async def process_export_stats(self) -> StatisticData:
+        if not await self._prepare_account(verify_sleep=False):
+            return StatisticData(
+                identifier=self.account_data.email,
+                points=0,
+                referral_url="",
+                status=False
+            )
+
+        logger.info(f"Account: {self.account_data.email} | Exporting stats...")
+        points = (await self.points_in_extension())["points"]
+
+        referral_url = await self.generate_referral_link()
+        logger.success(f"Account: {self.account_data.email} | Stats exported")
+
+        return StatisticData(
+            identifier=self.account_data.email,
+            points=int(points),
+            referral_url=referral_url,
+            status=True
+        )
+
+
+
     @error_handler(return_operation_result=False)
     async def process_twitter_status(self) -> bool:
         follow_status = await self.twitter_follow_status()
@@ -136,13 +161,14 @@ class Bot(PipeNetworkAPI):
         logger.error(f"Account: {self.account_data.email} | Twitter follow status: {follow_status}")
         return False
 
-    async def _prepare_account(self) -> bool:
+    async def _prepare_account(self, verify_sleep: bool = True) -> bool:
         account = await Accounts.get_account(email=self.account_data.email)
         if not account:
             return await self.login_new_account()
 
-        if await self.handle_sleep(account.sleep_until):
-            return False
+        if verify_sleep:
+            if await self.handle_sleep(account.sleep_until):
+                return False
 
         self.session.headers = account.headers
         return True

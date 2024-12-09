@@ -2,11 +2,10 @@ import asyncio
 import json
 import time
 
-from typing import Literal, Tuple, Any
+from typing import Literal, Any
 from curl_cffi.requests import AsyncSession, Response, RequestsError
 
 from models import Account
-from utils import url_to_params_dict
 from .exceptions.base import APIError, SessionRateLimited, ServerError
 
 
@@ -47,83 +46,49 @@ class PipeNetworkAPI:
         return response
 
     async def send_request(
-        self,
-        request_type: Literal["POST", "GET", "OPTIONS"] = "POST",
-        api_type: Literal["SITE", "EXTENSION"] = "SITE",
-        method: str = None,
-        json_data: dict = None,
-        params: dict = None,
-        url: str = None,
-        headers: dict = None,
-        cookies: dict = None,
-        verify: bool = True,
-        max_retries: int = 3,
-        retry_delay: float = 3.0,
+            self,
+            request_type: Literal["POST", "GET", "OPTIONS"] = "POST",
+            api_type: Literal["SITE", "EXTENSION"] = "SITE",
+            method: str = None,
+            json_data: dict = None,
+            params: dict = None,
+            url: str = None,
+            headers: dict = None,
+            cookies: dict = None,
+            verify: bool = True,
+            max_retries: int = 3,
+            retry_delay: float = 3.0,
     ):
         def verify_response(response_data: dict | list) -> dict | list:
-            if "status" in str(response_data):
-                if isinstance(response_data, dict):
-                    if response_data.get("status") is False:
-                        raise APIError(
-                            f"API returned an error: {response_data}", response_data
-                        )
+            if isinstance(response_data, dict):
 
-            elif "success" in str(response_data):
-                if isinstance(response_data, dict):
-                    if response_data.get("success") is False:
-                        raise APIError(
-                            f"API returned an error: {response_data}", response_data
-                        )
+                if response_data.get("message") == "Heartbeat recorded successfully.":
+                    return response_data
+
+                if "status" in str(response_data) and not response_data.get("status"):
+                    raise APIError(f"API returned an error: {response_data}", response_data)
+                if "success" in str(response_data) and not response_data.get("success"):
+                    raise APIError(f"API returned an error: {response_data}", response_data)
+                if "error" in str(response_data) and response_data.get("error"):
+                    raise APIError(f"API returned an error: {response_data}", response_data)
 
             return response_data
 
+        url = url or f"{self.SITE_API_URL if api_type == 'SITE' else self.EXTENSION_API_URL}{method}"
+        headers = headers or self.session.headers
+
         for attempt in range(max_retries):
             try:
-                url = url if url else f"{self.SITE_API_URL if api_type == 'SITE' else self.EXTENSION_API_URL}{method}"
                 if request_type == "POST":
-                    if not url:
-                        response = await self.session.post(
-                            url,
-                            json=json_data,
-                            params=params,
-                            headers=headers if headers else self.session.headers,
-                            cookies=cookies,
-                        )
-                    else:
-                        response = await self.session.post(
-                            url,
-                            json=json_data,
-                            params=params,
-                            headers=headers if headers else self.session.headers,
-                            cookies=cookies,
-                        )
+                    response = await self.session.post(url, json=json_data, params=params, headers=headers, cookies=cookies)
                 elif request_type == "OPTIONS":
-                    response = await self.session.options(
-                        url,
-                        headers=headers if headers else self.session.headers,
-                        cookies=cookies,
-                    )
+                    response = await self.session.options(url, headers=headers, cookies=cookies)
                 else:
-                    if not url:
-                        response = await self.session.get(
-                            url,
-                            params=params,
-                            headers=headers if headers else self.session.headers,
-                            cookies=cookies,
-                        )
-                    else:
-                        response = await self.session.get(
-                            url,
-                            params=params,
-                            headers=headers if headers else self.session.headers,
-                            cookies=cookies,
-                        )
+                    response = await self.session.get(url, params=params, headers=headers, cookies=cookies)
 
                 if verify:
-
                     if response.status_code == 403:
                         raise SessionRateLimited("Session is rate limited")
-
                     if response.status_code in (500, 502, 503, 504):
                         raise ServerError(f"Server error - {response.status_code}")
 
@@ -134,23 +99,14 @@ class PipeNetworkAPI:
 
                 return response.text
 
-            except ServerError as error:
+            except (ServerError, APIError, SessionRateLimited):
                 if attempt == max_retries - 1:
-                    raise error
+                    raise
                 await asyncio.sleep(retry_delay)
-
-
-            except APIError:
-                raise
-
-            except SessionRateLimited:
-                raise
 
             except Exception as error:
                 if attempt == max_retries - 1:
-                    raise ServerError(
-                        f"Failed to send request after {max_retries} attempts: {error}"
-                    )
+                    raise ServerError(f"Failed to send request after {max_retries} attempts: {error}")
                 await asyncio.sleep(retry_delay)
 
         raise ServerError(f"Failed to send request after {max_retries} attempts")
@@ -267,7 +223,11 @@ class PipeNetworkAPI:
             'timestamp': timestamp,
         }
 
-        return await self.send_request(method="/heartbeat", request_type="POST", api_type="SITE", json_data=json_data, headers=headers)
+        response = await self.send_request(method="/heartbeat", request_type="POST", api_type="SITE", json_data=json_data, headers=headers)
+        if "message" in response and response["message"] == "Heartbeat recorded successfully.":
+            return response
+
+        raise APIError(f"Failed to send heartbeat: {response}")
 
 
     async def get_twitter_bind_params(self) -> dict[str, str]:
@@ -275,6 +235,17 @@ class PipeNetworkAPI:
 
     async def twitter_follow_status(self) -> dict[str, Any]:
         return await self.send_request(method="/follow-status", request_type="GET", api_type="SITE")
+
+    async def generate_referral_link(self) -> str:
+        json_data = {
+            'email': self.account_data.email,
+        }
+
+        response = await self.send_request(method="/generate-referral", request_type="POST", json_data=json_data)
+        if "referralLink" in response:
+            return response["referralLink"]
+
+        raise APIError(f"Failed to generate referral link: {response}")
 
 
     async def bind_twitter(self, state: str, approved_code: str):
