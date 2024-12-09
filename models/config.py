@@ -25,7 +25,6 @@ class Config(BaseModel):
 
     accounts_to_register: list[Account] = []
     accounts_to_farm: list[Account] = []
-    accounts_to_bind_twitter: list[Account] = []
     referral_codes: list[str] = []
 
     delay_before_start: DelayBeforeStart

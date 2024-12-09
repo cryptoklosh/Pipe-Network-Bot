@@ -21,7 +21,6 @@ class Console:
     MODULES = (
         "🔑 Register",
         "🌾 Farm",
-        "🐦 Bind Twitter",
         "📊 Export stats",
         "❌ Exit",
     )
@@ -29,7 +28,6 @@ class Console:
     MODULES_DATA = {
         "🔑 Register": "register",
         "🌾 Farm": "farm",
-        "🐦 Bind Twitter": "bind_twitter",
         "📊 Export stats": "export_stats",
         "❌ Exit": "exit",
     }
@@ -54,7 +52,6 @@ class Console:
         telegram = Text("📱 Channel: https://t.me/JamBitPY", style="green")
         github = Text("💻 GitHub: https://github.com/Jaammerr", style="green")
 
-        # Используем box.ASCII для более правильного отображения линий
         dev_panel = Panel(
             Text.assemble(
                 styled_title, "\n",
@@ -90,7 +87,6 @@ class Console:
         return answers.get("module")
 
     def display_info(self):
-        # Используем ASCII box style для таблицы
         config_table = Table(
             title="Pipe Configuration",
             box=box.ASCII,
@@ -123,7 +119,6 @@ class Console:
             "✓"
         )
 
-        # Используем ASCII box style для панели
         panel = Panel(
             config_table,
             expand=False,

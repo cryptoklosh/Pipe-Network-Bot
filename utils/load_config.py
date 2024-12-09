@@ -58,6 +58,9 @@ class ConfigLoader:
     def _parse_proxies(self) -> Optional[List[Proxy]]:
         try:
             proxy_lines = self._read_file(self.data_path / "proxies.txt", allow_empty=True)
+            if not proxy_lines:
+                raise ConfigurationError("No proxies found")
+
             return [Proxy.from_str(line) for line in proxy_lines] if proxy_lines else None
         except Exception as e:
             raise ConfigurationError(f"Failed to parse proxies: {e}")
@@ -85,6 +88,7 @@ class ConfigLoader:
                             twitter_token=twitter_token.strip(),
                             proxy=next(proxy_cycle) if proxy_cycle else None
                         ))
+
                 except ValueError:
                     logger.warning(f"Skipping invalid account format: {line}")
                     continue
@@ -102,16 +106,14 @@ class ConfigLoader:
 
             reg_accounts = self._parse_accounts("register.txt", "register", proxies)
             farm_accounts = self._parse_accounts("farm.txt", "farm", proxies)
-            bind_twitter_accounts = self._parse_accounts("bind_twitter.txt", "bind_twitter", proxies)
 
-            if not (reg_accounts or farm_accounts or bind_twitter_accounts):
+            if not (reg_accounts or farm_accounts):
                 raise ConfigurationError("No valid accounts found")
 
             return Config(
                 **params,
                 accounts_to_farm=farm_accounts,
                 accounts_to_register=reg_accounts,
-                accounts_to_bind_twitter=bind_twitter_accounts
             )
 
         except Exception as e:
