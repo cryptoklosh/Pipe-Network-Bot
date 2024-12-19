@@ -45,7 +45,7 @@ class Bot(PipeNetworkAPI):
         await self._process_heartbeat()
 
         if config.show_points_stats:
-            response = await self.points_in_extension()
+            response = await self.points()
             logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
 
 
@@ -60,11 +60,14 @@ class Bot(PipeNetworkAPI):
             )
 
         logger.info(f"Account: {self.account_data.email} | Exporting stats...")
-        points = (await self.points_in_extension())["points"]
+        points = (await self.points())["points"]
 
-        referral_url = await self.generate_referral_link()
+        try:
+            referral_url = await self.generate_referral_link()
+        except:
+            referral_url = ""
+
         logger.success(f"Account: {self.account_data.email} | Stats exported")
-
         return StatisticData(
             identifier=self.account_data.email,
             points=int(points),
@@ -172,8 +175,8 @@ class Bot(PipeNetworkAPI):
 
     @error_handler(return_operation_result=False)
     async def login_new_account(self) -> bool:
-        logger.info(f"Account: {self.account_data.email} | Logging in via extension...")
-        await self.login_in_extension()
+        logger.info(f"Account: {self.account_data.email} | Logging in...")
+        await self.login()
 
         await Accounts.create_account(
             email=self.account_data.email,

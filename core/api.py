@@ -62,12 +62,7 @@ class PipeNetworkAPI:
         def verify_response(response_data: dict | list) -> dict | list:
             if isinstance(response_data, dict):
 
-                if response_data.get("message") == "Heartbeat recorded successfully.":
-                    return response_data
-
-                if "status" in str(response_data) and not response_data.get("status"):
-                    raise APIError(f"API returned an error: {response_data}", response_data)
-                if "success" in str(response_data) and not response_data.get("success"):
+                if "success" in str(response_data) and response_data.get("success") is False:
                     raise APIError(f"API returned an error: {response_data}", response_data)
                 if "error" in str(response_data) and response_data.get("error"):
                     raise APIError(f"API returned an error: {response_data}", response_data)
@@ -119,8 +114,8 @@ class PipeNetworkAPI:
             'referralCode': referral_code,
         }
 
-        response = await self.send_request(method="/signup", json_data=json_data, verify=False)
-        if response == "User registered successfully":
+        response = await self.send_request(method="/signup", json_data=json_data, verify=True)
+        if response["message"] == "User registered successfully":
             return response
 
         raise APIError(f"Failed to register account: {response}")
@@ -139,26 +134,8 @@ class PipeNetworkAPI:
         raise APIError(f"Failed to login account: {response}")
 
 
-    async def login_in_extension(self):
-        json_data = {
-            'email': self.account_data.email,
-            'password': self.account_data.password,
-        }
-
-        response = await self.send_request(method="/login", api_type="EXTENSION", json_data=json_data)
-        if "token" in response:
-            self.session.headers.update({"authorization": f"Bearer {response['token']}"})
-            return response
-
-        raise APIError(f"Failed to login account via extension: {response}")
-
-
     async def points(self) -> dict[str, Any]:
         response = await self.send_request(method="/points", request_type="GET")
-        return response
-
-    async def points_in_extension(self) -> dict[str, Any]:
-        response = await self.send_request(method="/points", request_type="GET", api_type="EXTENSION")
         return response
 
     async def nodes(self) -> Response:
@@ -224,7 +201,7 @@ class PipeNetworkAPI:
         }
 
         response = await self.send_request(method="/heartbeat", request_type="POST", api_type="SITE", json_data=json_data, headers=headers)
-        if "message" in response and response["message"] == "Heartbeat recorded successfully.":
+        if "message" in response and response["message"] == "Heartbeat recorded successfully":
             return response
 
         raise APIError(f"Failed to send heartbeat: {response}")
