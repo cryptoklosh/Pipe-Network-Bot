@@ -63,7 +63,7 @@ async def farm_continuously(accounts: List[Account]) -> None:
     while True:
         random.shuffle(accounts)
         await run_module(accounts, process_farming)
-        await asyncio.sleep(10)
+        await asyncio.sleep(60)
 
 
 def reset_initial_delays():

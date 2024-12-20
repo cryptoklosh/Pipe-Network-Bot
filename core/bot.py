@@ -7,7 +7,6 @@ import pytz
 from loguru import logger
 from loader import config
 from models import Account, OperationResult, StatisticData
-from utils import error_handler
 
 from .api import PipeNetworkAPI
 from database import Accounts
@@ -19,70 +18,95 @@ class Bot(PipeNetworkAPI):
         super().__init__(account)
         self.account_data = account
 
-
-    @error_handler(return_operation_result=True)
     async def process_registration(self) -> OperationResult:
-        referral_code = random.choice(config.referral_codes)
-        await self.register(referral_code=referral_code)
+        try:
+            referral_code = random.choice(config.referral_codes)
+            await self.register(referral_code=referral_code)
 
-        logger.success(f"Account: {self.account_data.email} | Registration successful")
+            logger.success(f"Account: {self.account_data.email} | Registration successful")
+            return OperationResult(
+                identifier=self.account_data.email,
+                data=self.account_data.password,
+                status=True
+            )
+
+        except APIError as error:
+            logger.error(f"Account: {self.account_data.email} | Registration failed (APIError): {error}")
+
+        except Exception as error:
+            logger.error(f"Account: {self.account_data.email} | Registration failed (Exception): {error}")
+
         return OperationResult(
             identifier=self.account_data.email,
             data=self.account_data.password,
-            status=True
+            status=False
         )
 
-    @error_handler(return_operation_result=False)
     async def process_farming_actions(self) -> None:
-        if not await self._prepare_account():
-            return
+        try:
+            if not await self._prepare_account():
+                return
 
-        node_data = await self.get_node_data()
-        if not node_data:
-            return
+            node_data = await self.get_node_data()
+            if not node_data:
+                return
 
-        await self._process_node(node_data)
-        await self._update_sleep_time()
-        await self._process_heartbeat()
+            await self._process_node(node_data)
+            await self._update_sleep_time()
+            await self._process_heartbeat()
 
-        if config.show_points_stats:
-            try:
+            if config.show_points_stats:
                 response = await self.points()
                 logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
-            except APIError as error:
-                if error.error_message == "Invalid token":
-                    logger.warning(f"Account: {self.account_data.email} | Session expired, re-logging in...")
-                    await Accounts.delete_account(self.account_data.email)
-                    return await self.process_farming_actions()
+
+        except APIError as error:
+            logger.error(f"Account: {self.account_data.email} | Farming actions failed (APIError): {error}")
+
+        except Exception as error:
+            logger.error(f"Account: {self.account_data.email} | Farming actions failed (Exception): {error}")
+
+        return
 
 
-    @error_handler(return_operation_result=True)
     async def process_export_stats(self) -> StatisticData:
-        if not await self._prepare_account(verify_sleep=False):
+        try:
+            if not await self._prepare_account(verify_sleep=False):
+                return StatisticData(
+                    identifier=self.account_data.email,
+                    points=0,
+                    referral_url="",
+                    status=False
+                )
+
+            logger.info(f"Account: {self.account_data.email} | Exporting stats...")
+            points = (await self.points())["points"]
+
+            try:
+                referral_url = await self.generate_referral_link()
+            except:
+                referral_url = ""
+
+            logger.success(f"Account: {self.account_data.email} | Stats exported")
             return StatisticData(
                 identifier=self.account_data.email,
-                points=0,
-                referral_url="",
-                status=False
+                points=int(points),
+                referral_url=referral_url,
+                status=True
             )
 
-        logger.info(f"Account: {self.account_data.email} | Exporting stats...")
-        points = (await self.points())["points"]
+        except APIError as error:
+            logger.error(f"Account: {self.account_data.email} | Export stats failed (APIError): {error}")
 
-        try:
-            referral_url = await self.generate_referral_link()
-        except:
-            referral_url = ""
+        except Exception as error:
+            logger.error(f"Account: {self.account_data.email} | Export stats failed (Exception): {error}")
 
-        logger.success(f"Account: {self.account_data.email} | Stats exported")
         return StatisticData(
             identifier=self.account_data.email,
-            points=int(points),
-            referral_url=referral_url,
-            status=True
+            points=0,
+            referral_url="",
+            status=False
         )
 
-    @error_handler(return_operation_result=False)
     async def process_twitter_status(self) -> bool:
         follow_status = await self.twitter_follow_status()
         if follow_status.get("status") == "User already verified":
@@ -104,7 +128,6 @@ class Bot(PipeNetworkAPI):
         self.session.headers = account.headers
         return True
 
-    @error_handler(return_operation_result=False)
     async def _process_node(self, node_data: Dict[str, Any]) -> None:
         node_id = str(node_data["node_id"])
         node_ip = str(node_data["ip"])
@@ -126,7 +149,6 @@ class Bot(PipeNetworkAPI):
         )
 
 
-    @error_handler(return_operation_result=False)
     async def _process_heartbeat(self) -> None:
         account = await Accounts.get_account(email=self.account_data.email)
         if await self.handle_heartbeat(account.next_heartbeat_in):
@@ -157,7 +179,6 @@ class Bot(PipeNetworkAPI):
                 f"Sleep time updated to {sleep_until}"
             )
 
-    @error_handler(return_operation_result=False)
     async def get_node_data(self) -> Optional[Dict[str, Any]]:
         response = await self.nodes()
         if not response or not response.text:
@@ -178,7 +199,6 @@ class Bot(PipeNetworkAPI):
         required_fields = {'node_id', 'ip'}
         return all(field in node for field in required_fields)
 
-    @error_handler(return_operation_result=False)
     async def login_new_account(self) -> bool:
         logger.info(f"Account: {self.account_data.email} | Logging in...")
         await self.login()
