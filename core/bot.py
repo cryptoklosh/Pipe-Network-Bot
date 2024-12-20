@@ -60,6 +60,11 @@ class Bot(PipeNetworkAPI):
                 logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
 
         except APIError as error:
+            if error.error_message == "Invalid token":
+                logger.warning(f"Account: {self.account_data.email} | Session expired | Re-logging in...")
+                await Accounts.delete_account(self.account_data.email)
+                return await self.process_farming_actions()
+
             logger.error(f"Account: {self.account_data.email} | Farming actions failed (APIError): {error}")
 
         except Exception as error:
@@ -95,6 +100,11 @@ class Bot(PipeNetworkAPI):
             )
 
         except APIError as error:
+            if error.error_message == "Invalid token":
+                logger.warning(f"Account: {self.account_data.email} | Session expired | Re-logging in...")
+                await Accounts.delete_account(self.account_data.email)
+                return await self.process_export_stats()
+
             logger.error(f"Account: {self.account_data.email} | Export stats failed (APIError): {error}")
 
         except Exception as error:
