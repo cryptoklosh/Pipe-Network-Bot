@@ -11,6 +11,7 @@ from utils import error_handler
 
 from .api import PipeNetworkAPI
 from database import Accounts
+from .exceptions.base import APIError
 
 
 class Bot(PipeNetworkAPI):
@@ -45,8 +46,14 @@ class Bot(PipeNetworkAPI):
         await self._process_heartbeat()
 
         if config.show_points_stats:
-            response = await self.points()
-            logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
+            try:
+                response = await self.points()
+                logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
+            except APIError as error:
+                if error.error_message == "Invalid token":
+                    logger.warning(f"Account: {self.account_data.email} | Session expired, re-logging in...")
+                    await Accounts.delete_account(self.account_data.email)
+                    return await self.process_farming_actions()
 
 
     @error_handler(return_operation_result=True)
@@ -74,8 +81,6 @@ class Bot(PipeNetworkAPI):
             referral_url=referral_url,
             status=True
         )
-
-
 
     @error_handler(return_operation_result=False)
     async def process_twitter_status(self) -> bool:

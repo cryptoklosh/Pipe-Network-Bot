@@ -245,11 +245,22 @@ class PipeNetworkAPI:
 
 
     async def get_geo_location(self) -> dict[str, str]:
-        response = await self.clear_request(url="https://ipapi.co/json/")
-        if response.status_code == 200:
-            data = response.json()
-            return {"ip": data["ip"], "location": f"{data['city']}, {data['region']}, {data['country_name']}"}
+        for _ in range(3):
+            headers = {
+                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'accept-language': 'en-US,en;q=0.9,ru;q=0.8',
+                'cache-control': 'max-age=0',
+                'priority': 'u=0, i',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            }
 
-        raise APIError(f"Failed to get geo location: {response.text}")
+            response = await self.clear_request(url="https://ipapi.co/json/", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                return {"ip": data["ip"], "location": f"{data['city']}, {data['region']}, {data['country_name']}"}
+
+            await asyncio.sleep(1)
+
+        raise APIError("Failed to get geo location after 3 attempts")
 
 
