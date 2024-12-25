@@ -8,6 +8,7 @@ from loader import config, semaphore, file_operations
 from core.bot import Bot
 from models import Account
 from console import Console
+from utils import setup
 from database import initialize_database
 
 
@@ -108,6 +109,7 @@ if __name__ == "__main__":
         if sys.platform == "win32":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+        setup()
         asyncio.run(run())
 
     except Exception as error:
