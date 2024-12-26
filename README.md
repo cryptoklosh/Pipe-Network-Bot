@@ -8,7 +8,6 @@
 - ./config/data/farm.txt
 - ./config/data/proxies.txt
 - ./config/data/register.txt
-- ./config/data/reverify.txt
 
 Опционально (база токенов для аккаунтов):
 - ./db/database.sqlite3
