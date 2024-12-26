@@ -7,9 +7,9 @@ from loguru import logger
 from loader import config, semaphore, file_operations
 from core.bot import Bot
 from models import Account
-from console import Console
 from utils import setup
 from database import initialize_database
+from prometheus_client import start_http_server
 
 
 accounts_with_initial_delay: Set[str] = set()
@@ -83,32 +83,34 @@ async def run() -> None:
         "export_stats": (config.accounts_to_farm, process_export_stats),
     }
 
-    while True:
-        Console().build()
+    modules_to_run = sys.argv[1:]
+    print(modules_to_run)
+    for module in modules_to_run:
+        config.module = module
 
         if config.module not in module_map:
             logger.error(f"Unknown module: {config.module}")
-            break
+            exit(-1)
 
         accounts, process_func = module_map[config.module]
 
         if not accounts:
             logger.error(f"No accounts for {config.module}")
-            input("\n\nPress Enter to continue...")
-            continue
+            exit(-1)
 
         if config.module == "farm":
             await process_func(accounts)
         else:
             await run_module(accounts, process_func)
-            input("\n\nPress Enter to continue...")
 
+    exit(0)
 
 if __name__ == "__main__":
     try:
         if sys.platform == "win32":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+        start_http_server(8080)
         setup()
         asyncio.run(run())
 

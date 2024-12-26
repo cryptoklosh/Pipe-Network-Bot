@@ -12,6 +12,8 @@ from .api import PipeNetworkAPI
 from database import Accounts
 from .exceptions.base import APIError
 
+from utils import pipe_requests_total_counter, mined_pipe_gauge
+
 
 class Bot(PipeNetworkAPI):
     def __init__(self, account: Account):
@@ -58,7 +60,11 @@ class Bot(PipeNetworkAPI):
             if config.show_points_stats:
                 response = await self.points()
                 logger.info(f"Account: {self.account_data.email} | Total Points: {response['points']}")
+                mined_pipe_gauge.labels(account=f"{self.account_data.email}").set_function(
+                    lambda: response['points'] if response is not None and response['points'] is not None else 0
+                )
 
+            pipe_requests_total_counter.labels(account=f"{self.account_data.email}", status="success").inc()
         except APIError as error:
             if error.error_message == "Invalid token":
                 logger.warning(f"Account: {self.account_data.email} | Session expired | Re-logging in...")
@@ -66,7 +72,7 @@ class Bot(PipeNetworkAPI):
                 return await self.process_farming_actions()
 
             logger.error(f"Account: {self.account_data.email} | Farming actions failed (APIError): {error}")
-
+            pipe_requests_total_counter.labels(account=f"{self.account_data.email}", status="fail").inc()
         except Exception as error:
             logger.error(f"Account: {self.account_data.email} | Farming actions failed (Exception): {error}")
 

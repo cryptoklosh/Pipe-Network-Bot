@@ -8,6 +8,7 @@ from loguru import logger
 from better_proxy import Proxy
 
 from models import Account, Config
+from .metrics import pipe_info
 
 
 class ConfigurationError(Exception):
@@ -106,6 +107,8 @@ class ConfigLoader:
 
             reg_accounts = self._parse_accounts("register.txt", "register", proxies)
             farm_accounts = self._parse_accounts("farm.txt", "farm", proxies)
+
+            pipe_info.info({"farm_accounts": f"{len(farm_accounts)}", "proxies": f"{len(proxies)}"})
 
             if not (reg_accounts or farm_accounts):
                 raise ConfigurationError("No valid accounts found")
