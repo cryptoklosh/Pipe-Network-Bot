@@ -19,6 +19,8 @@ class Bot(PipeNetworkAPI):
     def __init__(self, account: Account):
         super().__init__(account)
         self.account_data = account
+        pipe_requests_total_counter.labels(account=f"{self.account_data.email}", status="success").reset()
+        pipe_requests_total_counter.labels(account=f"{self.account_data.email}", status="fail").reset()
 
     async def process_registration(self) -> OperationResult:
         try:
